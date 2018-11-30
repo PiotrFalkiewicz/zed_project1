@@ -1,39 +1,42 @@
 ---
-title: "ZED_projekt"
-author: "Piotr"
-date: "November 30, 2018"
+title: "ZED Project"
+author: "Piotr Falkiewicz 122563"
+date: "30 listopad, 2018"
 output: 
   html_document: 
     keep_md: yes
+    toc: true
+    toc_float: true
 ---
 
 
 
-## R Markdown
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
 
 
-```r
-summary(cars)
-```
+# PDB data analysis
+##Start
 
-```
-##      speed           dist       
-##  Min.   : 4.0   Min.   :  2.00  
-##  1st Qu.:12.0   1st Qu.: 26.00  
-##  Median :15.0   Median : 36.00  
-##  Mean   :15.4   Mean   : 42.98  
-##  3rd Qu.:19.0   3rd Qu.: 56.00  
-##  Max.   :25.0   Max.   :120.00
-```
 
-## Including Plots
 
-You can also embed plots, for example:
+## 'res_name' class analysis
 
-![](file_files/figure-html/pressure-1.png)<!-- -->
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+
+## Correlation between variables
+
+![](file_files/figure-html/second_part_correlation-1.png)<!-- -->
+
+## part_01* columns analysis
+
+#####Add here interactive plots
+
+
+## Predicting number of electrons/atoms - regression
+
+![](file_files/figure-html/forth_part_electrons_atoms_regression-1.png)<!-- -->
+
+## Predicting res_name class value - classifier
+
+![](file_files/figure-html/fifth_part_res_name_classifier-1.png)<!-- -->
+

@@ -1,32 +1,69 @@
 ---
-title: "ZED_projekt"
-author: "Piotr"
-date: "November 30, 2018"
+title: "ZED Project"
+author: "Piotr Falkiewicz 122563"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: 
   html_document: 
     keep_md: yes
+    toc: true
+    toc_float: true
 ---
 
-```{r setup, include=FALSE}
+```{r setup_libs, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library("dplyr")
+library("ggplot2")
+library(DT)
+prettyTable <- function(table_df, round_columns=numeric(), round_digits=2) {
+    DT::datatable(table_df, style="bootstrap", filter = "top", rownames = FALSE, extensions = "Buttons", options = list(dom = 'Bfrtip', buttons = c('copy', 'csv', 'excel', 'pdf', 'print'))) %>%
+    formatRound(round_columns, round_digits)
+}
 ```
 
-## R Markdown
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
+```{r load_data, include=FALSE, cache = TRUE}
+rawdata <- read.csv("test_dataset.csv", header = TRUE, sep = ";")
 ```
 
-## Including Plots
+# PDB data analysis
+##Start
 
-You can also embed plots, for example:
+```{r zero_part}
 
-```{r pressure, echo=FALSE}
+```
+
+## 'res_name' class analysis
+
+```{r first_part_analysis, echo=FALSE}
+dataset_first <- rawdata %>%
+  select(c(res_name, local_res_atom_non_h_count, local_res_atom_non_h_electron_sum, local_res_atom_non_h_count, dict_atom_non_h_count, local_res_atom_non_h_electron_sum, dict_atom_non_h_electron_sum))
+
+#handle NaN values
+  
+```
+
+
+## Correlation between variables
+
+```{r second_part_correlation, echo=FALSE}
 plot(pressure)
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+## part_01* columns analysis
+
+#####Add here interactive plots
+```{r third_part_columns, echo=FALSE}
+dataset_third <- rawdata[,grepl("part_01", names(rawdata))]
+```
+
+## Predicting number of electrons/atoms - regression
+
+```{r forth_part_electrons_atoms_regression, echo=FALSE}
+plot(pressure)
+```
+
+## Predicting res_name class value - classifier
+
+```{r fifth_part_res_name_classifier, echo=FALSE}
+plot(pressure)
+```
+

@@ -7,6 +7,7 @@ output:
     keep_md: yes
     toc: true
     toc_float: true
+    number_sections: true
 ---
 
 ```{r setup_libs, include=FALSE}
@@ -14,56 +15,174 @@ knitr::opts_chunk$set(echo = TRUE)
 library("dplyr")
 library("ggplot2")
 library(DT)
-prettyTable <- function(table_df, round_columns=numeric(), round_digits=2) {
-    DT::datatable(table_df, style="bootstrap", filter = "top", rownames = FALSE, extensions = "Buttons", options = list(dom = 'Bfrtip', buttons = c('copy', 'csv', 'excel', 'pdf', 'print'))) %>%
+library(data.table)
+library(knitr)
+library(plotly)
+library(corrplot)
+library(reshape2)
+library(caret)
+library(randomForest)
+
+
+prettyTable1 <- function(table_df, round_columns=numeric(), round_digits=2) {
+    DT::datatable(table_df, style="bootstrap", rownames = TRUE, editable = FALSE,
+    width = 500,
+    options = list(dom = 'tp')) %>%
+    formatRound(round_columns, round_digits)
+}
+
+prettyTable2 <- function(table_df, round_columns=numeric(), round_digits=2) {
+    DT::datatable(table_df, style="bootstrap", rownames = TRUE, editable = FALSE,
+    width = 400,
+    options = list(dom = 't')) %>%
     formatRound(round_columns, round_digits)
 }
 ```
 
 ```{r load_data, include=FALSE, cache = TRUE}
-rawdata <- read.csv("test_dataset.csv", header = TRUE, sep = ";")
+forbidden_columns <- c( "UNK", "UNX", "UNL", "DUM", "N", "BLOB", "ALA", "ARG", "ASN", "ASP", "CYS", "GLN", "GLU", "GLY", "HIS", "ILE", "LEU", "LYS", "MET", "MSE", "PHE", "PRO", "SEC", "SER", "THR", "TRP", "TYR", "VAL", "DA", "DG", "DT", "DC", "DU", "A", "G", "T", "C", "U", "HOH", "H20", "WAT")
+
+rawdata <- fread("all_summary.csv", nrows = 10000)
+set.seed(19)
 ```
 
-# PDB data analysis
-##Start
-
+#Introduction 
 ```{r zero_part}
 
 ```
 
-## 'res_name' class analysis
+# 'res_name' class analysis 
 
 ```{r first_part_analysis, echo=FALSE}
 dataset_first <- rawdata %>%
-  select(c(res_name, local_res_atom_non_h_count, local_res_atom_non_h_electron_sum, local_res_atom_non_h_count, dict_atom_non_h_count, local_res_atom_non_h_electron_sum, dict_atom_non_h_electron_sum))
+  select(c(res_name, local_res_atom_non_h_count, local_res_atom_non_h_electron_sum, local_res_atom_non_h_count, dict_atom_non_h_count, local_res_atom_non_h_electron_sum, dict_atom_non_h_electron_sum)) %>% 
+  filter(!is.na(res_name)) %>%
+  filter(!res_name %in% forbidden_columns)
 
-#handle NaN values
+top_50_classes <- dataset_first %>% 
+  group_by(res_name) %>%
+  summarise(count = n()) %>% 
+  arrange(desc(count)) %>%
+  head(50)
+
+dataset_first_processed <- filter(dataset_first, res_name %in% top_50_classes$res_name)
+ds_first_processed_no_nan <- dataset_first_processed[complete.cases(dataset_first_processed),]
+
+prettyTable1(top_50_classes)
+
+plot1 <- ggplot(ds_first_processed_no_nan, aes(x = local_res_atom_non_h_count)) + geom_density() + theme_bw()
+ggplotly(plot1)
+
+plot2 <- ggplot(ds_first_processed_no_nan, aes(x = local_res_atom_non_h_electron_sum)) + geom_density() + theme_bw()
+ggplotly(plot2)
+
+ds_first_atoms_diff <- ds_first_processed_no_nan %>% 
+  filter(local_res_atom_non_h_count != dict_atom_non_h_count) %>%
+  group_by(res_name) %>%
+  summarise(count = n()) %>% 
+  arrange(desc(count)) %>%
+  head(10)
+
+ds_first_electrons_diff <- ds_first_processed_no_nan %>% 
+  filter(local_res_atom_non_h_electron_sum != dict_atom_non_h_electron_sum) %>%
+  group_by(res_name) %>%
+  summarise(count = n()) %>% 
+  arrange(desc(count)) %>%
+  head(10)
+
+prettyTable2(ds_first_atoms_diff)
+
+prettyTable2(ds_first_electrons_diff)
+
+```
+
+
+# Correlation between variables
+```{r second_part_correlation, message=FALSE, echo=FALSE, warning = FALSE, cache = TRUE}
+ds_second <- rawdata %>% select_if(is.numeric)
+ds_second2 <- ds_second %>% select(starts_with("part_0"))
+ds_second_cor <- ds_second2[complete.cases(ds_second2),]
+ds_second_cor_final <- round(cor(ds_second_cor),2)
+ds_second_cor_melted <- melt(ds_second_cor_final) %>% arrange(value)
+
+corr_plot <- ggplot(ds_second_cor_melted, aes(x=Var1, y=Var2, fill=value)) + 
+   geom_tile() + 
+   geom_tile(color = "white") +
   
+   scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+   midpoint = 0, limit = c(-1,1), space = "Lab", 
+   name="Pearson\nCorrelation") +
+  
+   theme(
+        axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank()
+   ) 
+
+ggplotly(corr_plot)
+
 ```
 
+# "part_01*"" columns analysis
 
-## Correlation between variables
+```{r third_part_columns, echo=FALSE, warning=FALSE, cache=TRUE}
 
-```{r second_part_correlation, echo=FALSE}
-plot(pressure)
+partColumns <- rawdata %>% 
+select(starts_with("part_01"))
+for(colName in names(partColumns)) {
+  currCol <- partColumns[[colName]]
+  currMean <- mean(currCol[!is.na(currCol)])
+  currPlot <- ggplot(partColumns, aes(x = currCol)) + 
+  xlab(colName) +
+  ylab("Density") +
+  geom_density(kernel = "gaussian", fill = "olivedrab3") + 
+  theme_minimal() +
+  geom_rug(sides="b", color="black", size = 1, aes(x=currMean, y=0)) + 
+  geom_text(aes(label=round(currMean, 2), x=currMean, y=0), hjust=0.5, vjust=-1, color="black")
+  print(currPlot)
+}
+
+
 ```
 
-## part_01* columns analysis
+# Predicting number of electrons/atoms - regression
 
-#####Add here interactive plots
-```{r third_part_columns, echo=FALSE}
-dataset_third <- rawdata[,grepl("part_01", names(rawdata))]
+```{r forth_part_electrons_atoms_regression, echo=FALSE, warning=FALSE, cache=TRUE}
+ds_forth <- rawdata %>% select(res_name, local_res_atom_non_h_count, local_res_atom_non_h_electron_sum, starts_with("part_0")) %>% filter(res_name %in% top_50_classes$res_name)
+ds_forth <- ds_forth[complete.cases(ds_forth),]
+
+# Elektrony
+ds_forth_electrons <- ds_forth %>% select(-c(local_res_atom_non_h_count,res_name))
+lm_e <- train(local_res_atom_non_h_electron_sum ~., data = ds_forth_electrons, method = "lm")
+
+lm_e$results
+
+# Atomy
+ds_forth_atoms <- ds_forth %>% select(-c(local_res_atom_non_h_electron_sum,res_name))
+
+lm_a <- train(local_res_atom_non_h_count ~., data = ds_forth_atoms, method = "lm")
+
+lm_a$results
 ```
 
-## Predicting number of electrons/atoms - regression
+# Predicting res_name class value - classifier
 
-```{r forth_part_electrons_atoms_regression, echo=FALSE}
-plot(pressure)
-```
+```{r fifth_part_res_name_classifier, echo=FALSE, warning=FALSE, cache=TRUE}
+ds_fifth <- rawdata %>% select(res_name, starts_with("part_0")) %>% filter(res_name %in% top_50_classes$res_name)
+ds_fifth <- ds_fifth[complete.cases(ds_fifth),]
+ds_fifth$res_name <- factor(ds_fifth$res_name, labels=c(1:length(table(ds_fifth$res_name))))
+ds_fifth_train_id <- createDataPartition(ds_fifth$res_name, p = 0.7, list = FALSE)
+ds_fifth_train <- ds_fifth[ds_fifth_train_id,]
+ds_fifth_test <- ds_fifth[-ds_fifth_train_id,]
+ctrl <- trainControl(method = "repeatedcv", number = 2, repeats = 5)
+ds_fifth_fit <- train(res_name ~ ., data = ds_fifth_train, method = "rf", trControl = ctrl, ntree = 50)
+df_fifth_predictions <- predict(ds_fifth_fit, newdata = ds_fifth_test)
+cm <- confusionMatrix(data = df_fifth_predictions, ds_fifth_test$res_name)
+cm_overall <- cm$overall
 
-## Predicting res_name class value - classifier
-
-```{r fifth_part_res_name_classifier, echo=FALSE}
-plot(pressure)
+round(cm_overall,2)
 ```
 

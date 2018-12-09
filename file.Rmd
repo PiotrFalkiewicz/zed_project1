@@ -7,13 +7,13 @@ output:
     keep_md: yes
     toc: true
     toc_float: true
-    number_sections: true
+    
 ---
 
 ```{r setup_libs, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-library("dplyr")
-library("ggplot2")
+library(dplyr)
+library(ggplot2)
 library(DT)
 library(data.table)
 library(knitr)
@@ -42,22 +42,36 @@ prettyTable2 <- function(table_df, round_columns=numeric(), round_digits=2) {
 ```{r load_data, include=FALSE, cache = TRUE}
 forbidden_columns <- c( "UNK", "UNX", "UNL", "DUM", "N", "BLOB", "ALA", "ARG", "ASN", "ASP", "CYS", "GLN", "GLU", "GLY", "HIS", "ILE", "LEU", "LYS", "MET", "MSE", "PHE", "PRO", "SEC", "SER", "THR", "TRP", "TYR", "VAL", "DA", "DG", "DT", "DC", "DU", "A", "G", "T", "C", "U", "HOH", "H20", "WAT")
 
-rawdata <- fread("all_summary.csv", nrows = 10000)
+rawdata <- fread("all_summary.csv", nrows = 200000)
 set.seed(19)
 ```
 
 #Introduction 
-```{r zero_part}
 
+Report consists of  
+
+```{r zero_part,message=FALSE, echo=FALSE, warning = FALSE, cache = TRUE}
+data_zero <- rawdata %>%
+  filter(!is.na(res_name)) %>%
+  filter(!res_name %in% forbidden_columns) %>%
+  select_if(is.numeric)
+
+num_stats <- t(sapply(data_zero, function(x){list(round(min(x, na.rm=TRUE),2),round(max(x, na.rm=TRUE),2),round(mean(x, na.rm=TRUE),2),round(median(x,na.rm=TRUE),2))}))
+colnames(num_stats) <- c("Min", "Max", "Mean", "Median")
 ```
+
+
+`r prettyTable1(num_stats)`
 
 # 'res_name' class analysis 
 
 ```{r first_part_analysis, echo=FALSE}
-dataset_first <- rawdata %>%
+data_first <- rawdata %>%
   select(c(res_name, local_res_atom_non_h_count, local_res_atom_non_h_electron_sum, local_res_atom_non_h_count, dict_atom_non_h_count, local_res_atom_non_h_electron_sum, dict_atom_non_h_electron_sum)) %>% 
   filter(!is.na(res_name)) %>%
-  filter(!res_name %in% forbidden_columns)
+  filter(!res_name %in% forbidden_columns) 
+
+dataset_first <- data_first[complete.cases(data_first),]
 
 top_50_classes <- dataset_first %>% 
   group_by(res_name) %>%
@@ -68,39 +82,51 @@ top_50_classes <- dataset_first %>%
 dataset_first_processed <- filter(dataset_first, res_name %in% top_50_classes$res_name)
 ds_first_processed_no_nan <- dataset_first_processed[complete.cases(dataset_first_processed),]
 
-prettyTable1(top_50_classes)
-
 plot1 <- ggplot(ds_first_processed_no_nan, aes(x = local_res_atom_non_h_count)) + geom_density() + theme_bw()
-ggplotly(plot1)
 
 plot2 <- ggplot(ds_first_processed_no_nan, aes(x = local_res_atom_non_h_electron_sum)) + geom_density() + theme_bw()
-ggplotly(plot2)
 
 ds_first_atoms_diff <- ds_first_processed_no_nan %>% 
   filter(local_res_atom_non_h_count != dict_atom_non_h_count) %>%
+  mutate(difference = abs(local_res_atom_non_h_count - dict_atom_non_h_count)) %>%
   group_by(res_name) %>%
-  summarise(count = n()) %>% 
-  arrange(desc(count)) %>%
+  summarise(total_diff = sum(difference), count = n()) %>% 
+  arrange(desc(total_diff)) %>%
   head(10)
 
 ds_first_electrons_diff <- ds_first_processed_no_nan %>% 
   filter(local_res_atom_non_h_electron_sum != dict_atom_non_h_electron_sum) %>%
+  mutate(difference = abs(dict_atom_non_h_electron_sum-local_res_atom_non_h_electron_sum)) %>%
   group_by(res_name) %>%
-  summarise(count = n()) %>% 
-  arrange(desc(count)) %>%
+  summarise(total_diff = sum(difference), count = n()) %>% 
+  arrange(desc(total_diff)) %>%
   head(10)
-
-prettyTable2(ds_first_atoms_diff)
-
-prettyTable2(ds_first_electrons_diff)
 
 ```
 
+The top 50 most popular values of class 'res_name' are shown in table below:
+`r prettyTable1(top_50_classes)`
+
+Distribution of number of atoms and electrons has been shown on charts:
+
+a) For atoms
+`r ggplotly(plot1)`
+
+b) For electrons:
+`r ggplotly(plot2)`
+
+That part of analysis contains 10 classes with biggest difference between 
+
+a) For atoms
+`r prettyTable2(ds_first_atoms_diff)`
+
+b) For electrons
+`r prettyTable2(ds_first_electrons_diff)`
 
 # Correlation between variables
 ```{r second_part_correlation, message=FALSE, echo=FALSE, warning = FALSE, cache = TRUE}
 ds_second <- rawdata %>% select_if(is.numeric)
-ds_second2 <- ds_second %>% select(starts_with("part_0"))
+ds_second2 <- ds_second 
 ds_second_cor <- ds_second2[complete.cases(ds_second2),]
 ds_second_cor_final <- round(cor(ds_second_cor),2)
 ds_second_cor_melted <- melt(ds_second_cor_final) %>% arrange(value)
@@ -109,7 +135,7 @@ corr_plot <- ggplot(ds_second_cor_melted, aes(x=Var1, y=Var2, fill=value)) +
    geom_tile() + 
    geom_tile(color = "white") +
   
-   scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+   scale_fill_gradient2(low = "red", high = "green", mid = "yellow", 
    midpoint = 0, limit = c(-1,1), space = "Lab", 
    name="Pearson\nCorrelation") +
   
@@ -122,67 +148,89 @@ corr_plot <- ggplot(ds_second_cor_melted, aes(x=Var1, y=Var2, fill=value)) +
         axis.ticks.y=element_blank()
    ) 
 
-ggplotly(corr_plot)
+#ggplotly(corr_plot)
 
 ```
+This section shows heatmap of correlation between variables
+`r ggplotly(corr_plot)`
+
+Highest value of correlation can be noticed for columns representing features of shape or dimensions of protein.
 
 # "part_01*"" columns analysis
 
+That part consist of distribution figures for columns, with names starting with 'part01'. The distribution is represented using density plots.
+
 ```{r third_part_columns, echo=FALSE, warning=FALSE, cache=TRUE}
 
-partColumns <- rawdata %>% 
+dataset_third <- rawdata %>% 
 select(starts_with("part_01"))
-for(colName in names(partColumns)) {
-  currCol <- partColumns[[colName]]
-  currMean <- mean(currCol[!is.na(currCol)])
-  currPlot <- ggplot(partColumns, aes(x = currCol)) + 
+
+for(colName in names(dataset_third)) {
+  currentCol <- dataset_third[[colName]]
+  currentMean <- mean(currentCol[!is.na(currentCol)])
+  currentPlot <- ggplot(dataset_third, aes(x = currentCol)) + 
   xlab(colName) +
   ylab("Density") +
   geom_density(kernel = "gaussian", fill = "olivedrab3") + 
   theme_minimal() +
-  geom_rug(sides="b", color="black", size = 1, aes(x=currMean, y=0)) + 
-  geom_text(aes(label=round(currMean, 2), x=currMean, y=0), hjust=0.5, vjust=-1, color="black")
-  print(currPlot)
+  geom_rug(sides="b", color="black", size = 1, aes(x=currentMean, y=0)) + 
+  geom_text(aes(label=round(currentMean, 2), x=currentMean, y=0), hjust=0.5, vjust=-1, color="black")
+  print(currentPlot)
 }
 
 
 ```
 
-# Predicting number of electrons/atoms - regression
+# Predicting number of electrons/atoms - linear regression
 
 ```{r forth_part_electrons_atoms_regression, echo=FALSE, warning=FALSE, cache=TRUE}
-ds_forth <- rawdata %>% select(res_name, local_res_atom_non_h_count, local_res_atom_non_h_electron_sum, starts_with("part_0")) %>% filter(res_name %in% top_50_classes$res_name)
+ds_forth <- rawdata %>% select(res_name, local_res_atom_non_h_count, local_res_atom_non_h_electron_sum,resolution,FoFc_mean,FoFc_std,FoFc_square_std,FoFc_min,FoFc_max) %>% filter(res_name %in% top_50_classes$res_name)
 ds_forth <- ds_forth[complete.cases(ds_forth),]
 
 # Elektrony
 ds_forth_electrons <- ds_forth %>% select(-c(local_res_atom_non_h_count,res_name))
 lm_e <- train(local_res_atom_non_h_electron_sum ~., data = ds_forth_electrons, method = "lm")
 
-lm_e$results
-
 # Atomy
 ds_forth_atoms <- ds_forth %>% select(-c(local_res_atom_non_h_electron_sum,res_name))
 
 lm_a <- train(local_res_atom_non_h_count ~., data = ds_forth_atoms, method = "lm")
 
-lm_a$results
 ```
+
+The experiment included attemp to create linear regression model for number of atoms(local_res_atom_non_h_count) and electrons(local_res_atom_non_h_electron_sum).
+
+The quality of linear regression for atoms is `r round(lm_a$results$RMSE,2)` for RSME and `r round(lm_a$results$Rsquared,2)` for R^2.
+The quality of linear regression for electrons is `r round(lm_e$results$RMSE,2)` for RSME and `r round(lm_e$results$Rsquared,2)` for R^2.
 
 # Predicting res_name class value - classifier
-
 ```{r fifth_part_res_name_classifier, echo=FALSE, warning=FALSE, cache=TRUE}
-ds_fifth <- rawdata %>% select(res_name, starts_with("part_0")) %>% filter(res_name %in% top_50_classes$res_name)
+ds_fifth <- rawdata %>% select(res_name, resolution,FoFc_mean,FoFc_std,FoFc_square_std,FoFc_min,FoFc_max) %>% filter(res_name %in% top_50_classes$res_name)
 ds_fifth <- ds_fifth[complete.cases(ds_fifth),]
 ds_fifth$res_name <- factor(ds_fifth$res_name, labels=c(1:length(table(ds_fifth$res_name))))
-ds_fifth_train_id <- createDataPartition(ds_fifth$res_name, p = 0.7, list = FALSE)
+
+splitRatio <- 0.7
+ds_fifth_train_id <- createDataPartition(ds_fifth$res_name, p = splitRatio, list = FALSE)
 ds_fifth_train <- ds_fifth[ds_fifth_train_id,]
 ds_fifth_test <- ds_fifth[-ds_fifth_train_id,]
-ctrl <- trainControl(method = "repeatedcv", number = 2, repeats = 5)
-ds_fifth_fit <- train(res_name ~ ., data = ds_fifth_train, method = "rf", trControl = ctrl, ntree = 50)
-df_fifth_predictions <- predict(ds_fifth_fit, newdata = ds_fifth_test)
-cm <- confusionMatrix(data = df_fifth_predictions, ds_fifth_test$res_name)
-cm_overall <- cm$overall
 
-round(cm_overall,2)
+ctrlC <- 5
+ctrlV <- 10
+
+ctrl <- trainControl(method = "repeatedcv", number = ctrlC, repeats = ctrlV)
+
+nTree <- 13
+
+ds_fifth_fit <- train(res_name ~ ., data = ds_fifth_train, method = "rf", trControl = ctrl, ntree = nTree)
+df_fifth_predictions <- predict(ds_fifth_fit, newdata = ds_fifth_test)
+
+cm <- confusionMatrix(data = df_fifth_predictions, ds_fifth_test$res_name)
 ```
+
+Classifier of res_name class was based on Random Forest algorithm. 
+
+First data was cleared from NaN cases and then splitted into train and test batches with ratio `r splitRatio`.
+The train control of model consists of `r ctrlC` parts and `r ctrlV` repeats.
+
+The quality measures for test batch are `r round(cm$overall[1],2)` for accuracy and `r round(cm$overall[2],2)` for Kappa score.
 

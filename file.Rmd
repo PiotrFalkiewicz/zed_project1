@@ -47,9 +47,6 @@ set.seed(19)
 ```
 
 #Introduction 
-
-Report consists of  
-
 ```{r zero_part,message=FALSE, echo=FALSE, warning = FALSE, cache = TRUE}
 data_zero <- rawdata %>%
   filter(!is.na(res_name)) %>%
@@ -60,6 +57,17 @@ num_stats <- t(sapply(data_zero, function(x){list(round(min(x, na.rm=TRUE),2),ro
 colnames(num_stats) <- c("Min", "Max", "Mean", "Median")
 ```
 
+
+Report stands for analyse of Protein Bank Data. 
+
+
+
+The input dataset consists of `r dim(rawdata)[1]` observations and `r dim(rawdata)[2]` attributes.
+
+At the start of analyse, dataset was cleared from observations that didn't belong to 50 most popular classes of protein.
+Skipping non-compelete rows was the way of handling NA values.
+
+Statistics of numeric attributes can be spotted in the tabel below.
 
 `r prettyTable1(num_stats)`
 
